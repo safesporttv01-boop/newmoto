@@ -61,6 +61,16 @@ if ($_POST && isset($_POST['profil_guncelle'])) {
                         <a href="index.php?page=shop" class="btn btn-outline-success btn-sm">
                             <i class="fas fa-shopping-cart me-2"></i>Mağaza
                         </a>
+                        <a href="index.php?page=mesajlar" class="btn btn-outline-info btn-sm">
+                            <i class="fas fa-envelope me-2"></i>Mesajlar
+                            <?php
+                            require_once 'includes/messaging_functions.php';
+                            $okunmamis_sayisi = getToplumOkunmamisMesajSayisi($_SESSION['kullanici_id']);
+                            if ($okunmamis_sayisi > 0):
+                            ?>
+                                <span class="badge bg-danger"><?php echo $okunmamis_sayisi; ?></span>
+                            <?php endif; ?>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -112,6 +122,63 @@ if ($_POST && isset($_POST['profil_guncelle'])) {
                             <i class="fas fa-save me-2"></i>Profili Güncelle
                         </button>
                     </form>
+                </div>
+            </div>
+            
+            <!-- Mesajlar Özeti -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-envelope me-2"></i>Son Mesajlar</h5>
+                    <a href="index.php?page=mesajlar" class="btn btn-outline-primary btn-sm">
+                        Tümünü Gör
+                        <?php if ($okunmamis_sayisi > 0): ?>
+                            <span class="badge bg-danger ms-1"><?php echo $okunmamis_sayisi; ?></span>
+                        <?php endif; ?>
+                    </a>
+                </div>
+                <div class="card-body">
+                    <?php
+                    $son_konusmalar = array_slice(getKonusmalar($_SESSION['kullanici_id']), 0, 3);
+                    if (empty($son_konusmalar)):
+                    ?>
+                        <div class="text-center py-3">
+                            <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                            <p class="text-muted mb-0">Henüz mesajınız bulunmuyor</p>
+                        </div>
+                    <?php else: ?>
+                        <?php foreach ($son_konusmalar as $konusma): ?>
+                            <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+                                <div class="me-3">
+                                    <i class="fas fa-user-circle fa-2x text-primary"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <h6 class="mb-1">
+                                            <?php echo $konusma['karsi_taraf_ad'] . ' ' . $konusma['karsi_taraf_soyad']; ?>
+                                            <?php if ($konusma['okunmamis_sayisi'] > 0): ?>
+                                                <span class="badge bg-danger ms-1"><?php echo $konusma['okunmamis_sayisi']; ?></span>
+                                            <?php endif; ?>
+                                        </h6>
+                                        <small class="text-muted">
+                                            <?php echo date('d.m H:i', strtotime($konusma['son_mesaj_tarihi'])); ?>
+                                        </small>
+                                    </div>
+                                    <p class="text-muted small mb-1"><?php echo $konusma['ilan_ismi']; ?></p>
+                                    <?php if ($konusma['son_mesaj']): ?>
+                                        <p class="text-muted small mb-0">
+                                            <?php echo mb_substr($konusma['son_mesaj'], 0, 40) . (mb_strlen($konusma['son_mesaj']) > 40 ? '...' : ''); ?>
+                                        </p>
+                                    <?php endif; ?>
+                                </div>
+                                <div>
+                                    <a href="index.php?page=mesajlar&konusma=<?php echo $konusma['id']; ?>" 
+                                       class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-reply"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
             

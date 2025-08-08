@@ -187,6 +187,22 @@ a {
                                 <i class="fas fa-shopping-cart me-1"></i>Mağaza
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="index.php?page=mesajlar">
+                                <i class="fas fa-envelope me-1"></i>Mesajlar
+                                <?php
+                                if (file_exists('includes/messaging_functions.php')) {
+                                    require_once 'includes/messaging_functions.php';
+                                    $okunmamis_sayisi = getToplumOkunmamisMesajSayisi($_SESSION['kullanici_id']);
+                                    if ($okunmamis_sayisi > 0):
+                                ?>
+                                    <span class="badge bg-danger"><?php echo $okunmamis_sayisi; ?></span>
+                                <?php 
+                                    endif;
+                                }
+                                ?>
+                            </a>
+                        </li>
                         <?php if (isset($_SESSION['is_admin']) && $_SESSION['is_admin']): ?>
                             <li class="nav-item">
                                 <a class="nav-link text-danger" href="admin/admin.php">Admin Panel</a>
@@ -273,6 +289,9 @@ a {
                 break;
             case 'ilan_detay':
                 include 'pages/ilan_detay.php';
+                break;
+            case 'mesajlar':
+                include 'pages/mesajlar.php';
                 break;
             case 'shop':
                 if (file_exists('pages/shop.php')) {

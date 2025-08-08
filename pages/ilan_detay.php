@@ -206,6 +206,15 @@ $fotograflar = getIlanFotograflari($ilan_id);
                         </div>
                     <?php endif; ?>
 
+                    <!-- Mesaj Gönderme Butonu -->
+                    <?php if (girisKontrol() && $_SESSION['kullanici_id'] != $ilan['kullanici_id']): ?>
+                        <div class="mb-3">
+                            <button class="btn btn-info w-100" onclick="openMessageModal()">
+                                <i class="fas fa-envelope me-2"></i>İlan Sahibine Mesaj Gönder
+                            </button>
+                        </div>
+                    <?php endif; ?>
+
                     <div class="text-center">
                         <a href="https://wa.me/90<?php echo $ilan['telefon']; ?>?text=Merhaba,%20<?php echo urlencode($ilan['ilan_ismi']); ?>%20ilanınızla%20ilgileniyorum." target="_blank" class="btn btn-success w-100 mb-2">
                             <i class="fab fa-whatsapp me-2"></i>WhatsApp ile İletişim
@@ -220,7 +229,176 @@ $fotograflar = getIlanFotograflari($ilan_id);
     </div>
 </div>
 
+<!-- Mesaj Gönderme Modal -->
+<?php if (girisKontrol() && $_SESSION['kullanici_id'] != $ilan['kullanici_id']): ?>
+<div class="modal fade" id="messageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-envelope me-2"></i>Mesaj Gönder
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-center mb-3">
+                    <?php if (!empty($fotograflar)): ?>
+                        <img src="<?php echo $fotograflar[0]['fotograf_yolu']; ?>" 
+                             class="rounded me-3" style="width: 60px; height: 60px; object-fit: cover;" 
+                             alt="<?php echo $ilan['ilan_ismi']; ?>">
+                    <?php else: ?>
+                        <div class="bg-light rounded me-3 d-flex align-items-center justify-content-center" 
+                             style="width: 60px; height: 60px;">
+                            <i class="fas fa-motorcycle text-muted"></i>
+                        </div>
+                    <?php endif; ?>
+                    <div>
+                        <h6 class="mb-1"><?php echo $ilan['ilan_ismi']; ?></h6>
+                        <small class="text-muted"><?php echo number_format($ilan['fiyat'], 0, ',', '.'); ?> ₺</small>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="messageText" class="form-label">Mesajınız</label>
+                    <textarea class="form-control" id="messageText" rows="4" 
+                              placeholder="Merhaba, ilanınızla ilgileniyorum..."></textarea>
+                </div>
+                
+                <div id="messageStatus" class="alert" style="display: none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
+                <button type="button" class="btn btn-primary" onclick="sendMessageToOwner()">
+                    <i class="fas fa-paper-plane me-2"></i>Mesaj Gönder
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <script>
+let messageWebSocket = null;
+
+// WebSocket bağlantısı
+function connectMessageWebSocket() {
+    <?php if (girisKontrol()): ?>
+    try {
+        messageWebSocket = new WebSocket('ws://localhost:8765');
+        
+        messageWebSocket.onopen = function() {
+            console.log('Mesaj WebSocket bağlantısı kuruldu');
+            
+            // Kullanıcıyı kaydet
+            messageWebSocket.send(JSON.stringify({
+                type: 'register',
+                kullanici_id: <?php echo $_SESSION['kullanici_id']; ?>,
+                kullanici_ad: '<?php echo $_SESSION['kullanici_ad']; ?>',
+                kullanici_email: '<?php echo $_SESSION['kullanici_email']; ?>'
+            }));
+        };
+        
+        messageWebSocket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            handleMessageResponse(data);
+        };
+        
+        messageWebSocket.onclose = function() {
+            console.log('Mesaj WebSocket bağlantısı kesildi');
+            setTimeout(connectMessageWebSocket, 3000);
+        };
+        
+        messageWebSocket.onerror = function(error) {
+            console.error('Mesaj WebSocket hatası:', error);
+        };
+        
+    } catch (error) {
+        console.error('Mesaj WebSocket bağlantısı kurulamadı:', error);
+        setTimeout(connectMessageWebSocket, 3000);
+    }
+    <?php endif; ?>
+}
+
+function handleMessageResponse(data) {
+    const statusDiv = document.getElementById('messageStatus');
+    
+    if (data.type === 'conversation_started') {
+        if (data.success) {
+            // Konuşma başlatıldı, şimdi mesajı gönder
+            const messageText = document.getElementById('messageText').value.trim();
+            if (messageText && messageWebSocket) {
+                messageWebSocket.send(JSON.stringify({
+                    type: 'send_message',
+                    konusma_id: data.konusma_id,
+                    gonderen_id: <?php echo girisKontrol() ? $_SESSION['kullanici_id'] : 'null'; ?>,
+                    mesaj: messageText
+                }));
+            }
+        } else {
+            statusDiv.className = 'alert alert-danger';
+            statusDiv.textContent = 'Konuşma başlatılamadı: ' + (data.error || 'Bilinmeyen hata');
+            statusDiv.style.display = 'block';
+        }
+    } else if (data.type === 'new_message' && data.status === 'sent') {
+        statusDiv.className = 'alert alert-success';
+        statusDiv.innerHTML = '<i class="fas fa-check me-2"></i>Mesajınız başarıyla gönderildi!';
+        statusDiv.style.display = 'block';
+        
+        // 2 saniye sonra modal'ı kapat ve mesajlar sayfasına yönlendir
+        setTimeout(() => {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('messageModal'));
+            modal.hide();
+            window.location.href = 'index.php?page=mesajlar';
+        }, 2000);
+    }
+}
+
+function openMessageModal() {
+    const modal = new bootstrap.Modal(document.getElementById('messageModal'));
+    modal.show();
+    
+    // Status mesajını temizle
+    const statusDiv = document.getElementById('messageStatus');
+    statusDiv.style.display = 'none';
+    
+    // Mesaj alanını temizle
+    document.getElementById('messageText').value = '';
+}
+
+function sendMessageToOwner() {
+    const messageText = document.getElementById('messageText').value.trim();
+    
+    if (!messageText) {
+        alert('Lütfen mesajınızı yazın.');
+        return;
+    }
+    
+    if (!messageWebSocket || messageWebSocket.readyState !== WebSocket.OPEN) {
+        alert('Bağlantı hatası. Lütfen sayfayı yenileyin.');
+        return;
+    }
+    
+    // Önce konuşmayı başlat
+    messageWebSocket.send(JSON.stringify({
+        type: 'start_conversation',
+        gonderen_id: <?php echo girisKontrol() ? $_SESSION['kullanici_id'] : 'null'; ?>,
+        alici_id: <?php echo $ilan['kullanici_id']; ?>,
+        ilan_id: <?php echo $ilan['id']; ?>,
+        baslik: '<?php echo addslashes($ilan['ilan_ismi']); ?> Hakkında'
+    }));
+    
+    // Buton durumunu değiştir
+    const sendButton = event.target;
+    sendButton.disabled = true;
+    sendButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Gönderiliyor...';
+    
+    // 10 saniye sonra butonu tekrar aktif et
+    setTimeout(() => {
+        sendButton.disabled = false;
+        sendButton.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Mesaj Gönder';
+    }, 10000);
+}
+
 function shareAd() {
     const ilanBaslik = '<?php echo addslashes($ilan["ilan_ismi"]); ?>';
     const ilanUrl = window.location.href;
@@ -249,4 +427,9 @@ function shareAd() {
         });
     }
 }
+
+// Sayfa yüklendiğinde WebSocket bağlantısını başlat
+document.addEventListener('DOMContentLoaded', function() {
+    connectMessageWebSocket();
+});
 </script>
